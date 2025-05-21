@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from src.utils import tools
 from src.models.gcn import GCN
+import src.config as config
 
 crit = nn.CrossEntropyLoss(weight=torch.ones(8, device='cuda'))  # unweighted
 
@@ -130,11 +131,12 @@ if __name__ == '__main__':
     np.random.seed(args.seed)
     device = torch.device('cuda:'+str(args.device)
                           if torch.cuda.is_available() else 'cpu')
+    print(f'Using device:{device}')
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
     data, n, d = tools.load_data()
-    num_classes=8
+    num_classes=config.NUM_CLASSES
     train_folds, test_folds = tools.separate_data(data, args.seed, args.fold_idx)
     A = torch.Tensor(tools.adj_builder(n)).to(device)
 

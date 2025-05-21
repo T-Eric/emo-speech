@@ -2,6 +2,7 @@ EMOTION = {
     0: "neutral", 1: "calm", 2: "happy", 3: "sad",
     4: "angry", 5: "fearful", 6: "disgust", 7: "surprised"
 }
+NUM_CLASSES=len(EMOTION)
 
 EMOTIONAL_INTENSITY = {
     0: "normal", 1: "strong"
