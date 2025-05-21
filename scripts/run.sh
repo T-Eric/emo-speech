@@ -1,0 +1,17 @@
+python -m src.train \
+  --device 0 \
+  --batch_size 128 \
+  --iters_per_epoch 50 \
+  --epochs 1000 \
+  --lr 5e-4 \
+  --seed 42 \
+  --fold_idx 5 \
+  --num_layers 2 \
+  --hidden_dim 64 \
+  --final_dropout 0.5 \
+  --graph_pooling_type sum \
+  --Normalize False \
+  --patience 10 \
+  --beta1 0.9 \
+  --beta2 0.999 \
+  --weight-decay 1e-4
