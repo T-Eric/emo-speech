@@ -14,4 +14,5 @@ python -m src.train \
   --patience 10 \
   --beta1 0.9 \
   --beta2 0.999 \
-  --weight-decay 1e-4
+  --weight-decay 1e-4 \
+  --adjacency 4
