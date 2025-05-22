@@ -6,8 +6,9 @@ python -m src.train \
   --lr 5e-4 \
   --seed 42 \
   --fold_idx 5 \
+  --model gat \
   --num_layers 2 \
-  --hidden_dim 64 \
+  --hidden_dim 256 \
   --final_dropout 0.5 \
   --graph_pooling_type sum \
   --Normalize False \
@@ -15,5 +16,5 @@ python -m src.train \
   --beta1 0.9 \
   --beta2 0.999 \
   --weight-decay 1e-4 \
-  --adjacency 4 \
-  --self_connect True
+  --adjacency 2 \
+  --self_connect False

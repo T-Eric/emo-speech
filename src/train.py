@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from src.utils import tools
 from src.models.gcn import GCN
+from src.models.gat import SkipGCNGAT
 import src.config as config
 
 crit = nn.CrossEntropyLoss(weight=torch.ones(8, device='cuda'))  # unweighted
@@ -107,6 +108,8 @@ if __name__ == '__main__':
                         help='random seed for splitting the dataset into 10 (default: 42)')
     parser.add_argument('--fold_idx', type=int, default=5,
                         help='the index of fold in 10-fold validation. Should be less then 10.')
+    parser.add_argument('--model', type=str, default='gcn',
+                        choices=['gcn', 'gat'], help='which model to use (default: gcn)')
     parser.add_argument('--num_layers', type=int, default=2,
                         help='number of layers INCLUDING the input one (default: 2)')
     parser.add_argument('--hidden_dim', type=int, default=64,
@@ -146,8 +149,14 @@ if __name__ == '__main__':
     A = torch.Tensor(tools.adj_builder(n, adj_num=args.adjacency,
                      self_connect=args.self_connect)).to(device)
 
-    model = GCN(args.num_layers, d, args.hidden_dim, num_classes,
-                args.final_dropout, args.graph_pooling_type, device, A).to(device)
+    if args.model == 'gcn':
+        # GCN
+        model = GCN(args.num_layers, d, args.hidden_dim, num_classes,
+                    args.final_dropout, args.graph_pooling_type, device, A).to(device)
+    elif args.model == 'gat':
+        # SkipGCNGAT，头数采用adjacency数，hidden_layer尽量比输入维数大
+        model = SkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, args.adjacency,
+                           args.final_dropout, args.graph_pooling_type, device, A).to(device)
 
     acc_train_sum = 0
     acc_test_sum = 0
@@ -194,8 +203,13 @@ if __name__ == '__main__':
         acc_train_sum += acc_train
         acc_test_sum += acc_test
 
-        model = GCN(args.num_layers, d, args.hidden_dim, num_classes,
-                    args.final_dropout, args.graph_pooling_type, device, A).to(device)
+        if args.model == 'gcn':
+            # GCN
+            model = GCN(args.num_layers, d, args.hidden_dim, num_classes,
+                        args.final_dropout, args.graph_pooling_type, device, A).to(device)
+        elif args.model == 'gat':
+            model = SkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, args.adjacency,
+                               args.final_dropout, args.graph_pooling_type, device, A).to(device)
 
     print('Average train acc: %f,  Average test acc: %f' %
           (acc_train_sum / args.fold_idx, acc_test_sum / args.fold_idx))

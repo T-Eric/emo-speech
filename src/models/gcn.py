@@ -37,7 +37,7 @@ class GraphConv(nn.Module):
         b, t, d = features.shape
         assert d == self.in_dim
 
-        if (len(A.shape) == 2):
+        if A.dim() == 2:
             # all the graphs share the same A
             Deg = calc_degree(A)
             sqrt_Deg = torch.FloatTensor(fractional_matrix_power(
@@ -71,10 +71,6 @@ class GraphConv(nn.Module):
             repeated_U_t = torch.cat(repeated_U_t)
             repeated_U = torch.cat(repeated_U)
 
-        assert not repeated_U_t.is_complex(), "repeated_U_t is complex tensor"
-        assert not repeated_U.is_complex(), "repeated_U is complex tensor"
-        assert not features.is_complex(), "features is complex tensor"
-
         agg_feats = torch.bmm(repeated_U_t, features)
 
         # reshape to (batch_size*num_nodes,out_features) to apply MLP
@@ -101,6 +97,7 @@ class GCN(nn.Module):
         for i in range(num_layers-1):
             self.gcs.append(GraphConv(hidden_dim, hidden_dim))
 
+        # fully connected layer
         self.classifier = nn.Sequential(nn.Linear(self.hidden_dim, 128), nn.Dropout(
             p=self.final_dropout), nn.PReLU(128), nn.Linear(128, out_dim))
 
@@ -123,29 +120,3 @@ class GCN(nn.Module):
 
         ret = self.classifier(h)
         return ret
-
-
-class SkipGCN(nn.Module):
-    ''' 
-    在每次变换后保留原特征, 追加一层独立MLP
-    也就是先GCN+H, 再MLP+H
-    '''
-
-    def __init__(self, num_layers, in_dim, hidden_dim, out_dim, final_dropout, graph_pooling_type, device, adj):
-        super(SkipGCN, self).__init__()
-
-        self.final_dropout = final_dropout
-        self.graph_pooling_type = graph_pooling_type
-        self.device = device
-        self.num_layers = num_layers
-        self.in_dim = in_dim
-        self.hidden_dim = hidden_dim
-        self.adj = adj
-
-        self.gcs = torch.nn.ModuleList()
-        self.gcs.append(GraphConv(in_dim, hidden_dim))
-        for i in range(num_layers-1):
-            self.gcs.append(GraphConv(hidden_dim, hidden_dim))
-
-        self.classifier = nn.Sequential(nn.Linear(self.hidden_dim, 128), nn.Dropout(
-            p=self.final_dropout), nn.PReLU(128), nn.Linear(128, out_dim))
