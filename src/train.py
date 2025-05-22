@@ -126,14 +126,16 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                         metavar='W', help='weight decay (default: 1e-4)')
     parser.add_argument('--adjacency', '--adj', default=1,
-                        type=int, help='Nearest neighbors per node')
+                        type=int, help='Nearest neighbors per node. Default 1.')
+    parser.add_argument('--self_connect', default=False, type=bool,
+                        help='Whether to connect itself in the Adjacency Mat. Default False.')
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     device = torch.device('cuda:'+str(args.device)
                           if torch.cuda.is_available() else 'cpu')
-    print(f'Using device:{device}')
+    print(f'Using device: {device}')
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
@@ -141,7 +143,8 @@ if __name__ == '__main__':
     num_classes = config.NUM_CLASSES
     train_folds, test_folds = tools.separate_data(
         data, args.seed, args.fold_idx)
-    A = torch.Tensor(tools.adj_builder(n, adj_num=args.adjacency)).to(device)
+    A = torch.Tensor(tools.adj_builder(n, adj_num=args.adjacency,
+                     self_connect=args.self_connect)).to(device)
 
     model = GCN(args.num_layers, d, args.hidden_dim, num_classes,
                 args.final_dropout, args.graph_pooling_type, device, A).to(device)

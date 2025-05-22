@@ -15,4 +15,5 @@ python -m src.train \
   --beta1 0.9 \
   --beta2 0.999 \
   --weight-decay 1e-4 \
-  --adjacency 4
+  --adjacency 4 \
+  --self_connect True
