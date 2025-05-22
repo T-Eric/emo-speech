@@ -21,7 +21,7 @@ class SkipGraphConv(nn.Module):
         super(SkipGraphConv, self).__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
-        assert in_dim == out_dim, "in_dim must be equal to out_dim"
+        # assert in_dim == out_dim, "in_dim must be equal to out_dim"
         self.graph_conv = GraphConv(in_dim, hidden_dim, num_layers, hidden_dim)
         self.MLP = MLP(num_layers,hidden_dim, hidden_dim, out_dim)
 
@@ -34,7 +34,7 @@ class SkipGraphConv(nn.Module):
         b, t, d = features.shape
         h_gcn = self.graph_conv(features, A)
         # h_skip = h_gcn+features
-        h_mlp = self.MLP(h_gcn.view(-1, d)).view(b, -1, self.out_dim)
+        h_mlp = self.MLP(h_gcn.view(-1, h_gcn.shape[-1])).view(b, -1, self.out_dim)
         return h_mlp
 
 
@@ -104,9 +104,9 @@ class SkipGCNGAT(nn.Module):
         self.adj = adj
 
         self.gcs1 = torch.nn.ModuleList()
-        self.gcs1.append(SkipGraphConv(in_dim, hidden_dim))
+        self.gcs1.append(SkipGraphConv(in_dim, hidden_dim,hidden_dim=hidden_dim))
         for i in range(num_layers-1):
-            self.gcs1.append(SkipGraphConv(hidden_dim, hidden_dim))
+            self.gcs1.append(SkipGraphConv(hidden_dim, hidden_dim,hidden_dim=hidden_dim))
 
         # first layer use multi-head, last layer use single-head
         self.gats = torch.nn.ModuleList()
@@ -114,9 +114,9 @@ class SkipGCNGAT(nn.Module):
         self.gats.append(GAT(hidden_dim*2, hidden_dim, heads=1, concat=False))
 
         self.gcs2 = torch.nn.ModuleList()
-        self.gcs2.append(SkipGraphConv(hidden_dim, hidden_dim))
+        self.gcs2.append(SkipGraphConv(hidden_dim, hidden_dim,hidden_dim=hidden_dim))
         for i in range(num_layers-1):
-            self.gcs2.append(SkipGraphConv(hidden_dim, hidden_dim))
+            self.gcs2.append(SkipGraphConv(hidden_dim, hidden_dim,hidden_dim=hidden_dim))
 
         self.classifier = nn.Sequential(nn.Linear(self.hidden_dim, 128), nn.Dropout(
             p=self.final_dropout), nn.PReLU(128), nn.Linear(128, out_dim))
