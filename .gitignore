@@ -2,3 +2,4 @@ data/processed_data/
 Speech Emotion Recognition.ipynb
 **/__pycache__/
 checkpoint.pt
+gin/

@@ -1,4 +1,6 @@
 import argparse
+import json
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -142,12 +144,23 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
+    log_data = {
+        'epochs': [[] for _ in range(args.fold_idx)],
+        'train_losses': [[] for _ in range(args.fold_idx)],
+        'val_losses': [[] for _ in range(args.fold_idx)],
+        'train_accs': [[] for _ in range(args.fold_idx)],
+        'test_accs': [[] for _ in range(args.fold_idx)],
+        'folds': args.fold_idx,
+        'model_config': vars(args)  # 保存模型配置
+    }
+
     data, n, d = tools.load_data()
     num_classes = config.NUM_CLASSES
     train_folds, test_folds = tools.separate_data(
         data, args.seed, args.fold_idx)
     A = torch.Tensor(tools.adj_builder(n, adj_num=args.adjacency,
                      self_connect=args.self_connect)).to(device)
+    gat_heads = args.adjacency*2
 
     if args.model == 'gcn':
         # GCN
@@ -155,7 +168,6 @@ if __name__ == '__main__':
                     args.final_dropout, args.graph_pooling_type, device, A).to(device)
     elif args.model == 'gat':
         # SkipGCNGAT，头数采用adjacency数，hidden_layer尽量比输入维数大
-        gat_heads = args.adjacency*4
         model = SkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, gat_heads,
                            args.final_dropout, args.graph_pooling_type, device, A).to(device)
 
@@ -176,6 +188,8 @@ if __name__ == '__main__':
         for epoch in range(1, args.epochs+1):
             avg_loss = train(args, model, device,
                              train_data, optimizer, epoch, A)
+            log_data['epochs'][i].append(epoch)
+            log_data['train_losses'][i].append(float(avg_loss))
 
             if epoch > 1:
                 with torch.no_grad():
@@ -184,6 +198,7 @@ if __name__ == '__main__':
                         [data[1] for data in test_data]).to(device)
                     val_loss = np.average(
                         crit(val_out, val_labels).detach().cpu().numpy())
+                    log_data['val_losses'][i].append(val_loss)
 
                 early_stopping(val_loss, model)
 
@@ -191,9 +206,11 @@ if __name__ == '__main__':
                     print('Early stopping')
                     break
 
-            if epoch > 300 and epoch % 20 == 0 or epoch % 10 == 0:
+            if epoch % 10 == 0:
                 acc_train, acc_test, _, _ = test(
                     args, model, train_data, test_data)
+                log_data['train_accs'][i].append(float(acc_train))
+                log_data['test_accs'][i].append(float(acc_test))
 
             scheduler.step()
 
@@ -209,9 +226,14 @@ if __name__ == '__main__':
             model = GCN(args.num_layers, d, args.hidden_dim, num_classes,
                         args.final_dropout, args.graph_pooling_type, device, A).to(device)
         elif args.model == 'gat':
-            gat_heads = args.adjacency*4
             model = SkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, gat_heads,
                                args.final_dropout, args.graph_pooling_type, device, A).to(device)
 
     print('Average train acc: %f,  Average test acc: %f' %
           (acc_train_sum / args.fold_idx, acc_test_sum / args.fold_idx))
+
+    os.makedirs('logs', exist_ok=True)
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    log_file = f'logs/{args.model}_l{args.num_layers}_h{args.hidden_dim}_{timestamp}.json'
+    with open(log_file, 'w') as f:
+        json.dump(log_data, f, indent=4)
