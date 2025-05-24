@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from src.utils import tools
 from src.models.gcn import GCN
-from src.models.gat import SkipGCNGAT
+from src.models.gat import EnhancedSkipGCNGAT, SkipGCNGAT
 import src.config as config
 
 crit = nn.CrossEntropyLoss(weight=torch.ones(8, device='cuda'))  # unweighted
@@ -168,7 +168,7 @@ if __name__ == '__main__':
                     args.final_dropout, args.graph_pooling_type, device, A).to(device)
     elif args.model == 'gat':
         # SkipGCNGAT，头数采用adjacency数，hidden_layer尽量比输入维数大
-        model = SkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, gat_heads,
+        model = EnhancedSkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, gat_heads,
                            args.final_dropout, args.graph_pooling_type, device, A).to(device)
 
     acc_train_sum = 0
@@ -226,7 +226,7 @@ if __name__ == '__main__':
             model = GCN(args.num_layers, d, args.hidden_dim, num_classes,
                         args.final_dropout, args.graph_pooling_type, device, A).to(device)
         elif args.model == 'gat':
-            model = SkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, gat_heads,
+            model = EnhancedSkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, gat_heads,
                                args.final_dropout, args.graph_pooling_type, device, A).to(device)
 
     print('Average train acc: %f,  Average test acc: %f' %
