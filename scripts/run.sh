@@ -10,7 +10,7 @@ python -m src.train \
   --num_layers 3 \
   --hidden_dim 256 \
   --final_dropout 0.5 \
-  --layer_dropout 0.15 \
+  --layer_dropout 0.1 \
   --graph_pooling_type sum \
   --patience 20 \
   --adjacency 2 \

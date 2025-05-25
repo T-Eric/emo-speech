@@ -24,7 +24,9 @@ def train(args, model: nn.Module, device, train_data, optimizer, epoch, A):
     pbar = tqdm(range(total_iters), unit='batch')
 
     loss_accum = 0
-    start = time.time()
+
+    # 获取当前学习率 - CosineAnnealingLR 是每个 epoch 更新一次
+    current_lr = optimizer.param_groups[0]['lr']
 
     for pos in pbar:
         selected_idx = np.random.permutation(len(train_data))[:args.batch_size]
@@ -47,12 +49,12 @@ def train(args, model: nn.Module, device, train_data, optimizer, epoch, A):
 
         if pos > 0:
             pbar.set_description(
-                f'Epoch: {epoch}, Loss: {loss_accum / pos:.4f}')
+                f'Epoch: {epoch}, Loss: {loss_accum / pos:.4f}, LR: {current_lr:.6f}')
 
-    end = time.time()
     average_loss = loss_accum/total_iters
-    print('Epoch: %d, Loss: %.4f, Time: %.4f' %
-          (epoch, average_loss, end-start))
+    print('Epoch: %d, Loss: %.4f, LR: %.6f' %
+          (epoch, average_loss, current_lr))
+
     return average_loss
 
 
@@ -185,7 +187,7 @@ if __name__ == '__main__':
         elif args.model == 'exgat':
             # EnhancedSkipGCNGAT，头数采用adjacency数，hidden_layer尽量比输入维数大
             model = EnhancedSkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, gat_heads,
-                                       args.final_dropout, args.graph_pooling_type, device, A, args.layer_dropout,args.use_multiscale_fusion, args.use_special_pooling).to(device)
+                                       args.final_dropout, args.graph_pooling_type, device, A, args.layer_dropout, args.use_multiscale_fusion, args.use_special_pooling).to(device)
 
         train_data = train_folds[i]
         test_data = test_folds[i]
@@ -202,7 +204,7 @@ if __name__ == '__main__':
 
         for epoch in range(1, args.epochs+1):
             avg_loss = train(args, model, device,
-                             train_data, optimizer, epoch, A)
+                             train_data, optimizer, epoch, A, scheduler)
             log_data['epochs'][i].append(epoch)
             log_data['train_losses'][i].append(float(avg_loss))
 
