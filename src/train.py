@@ -93,6 +93,17 @@ def test(args, model: nn.Module, train_data, test_data):
     return train_acc, test_acc, test_output, test_labels
 
 
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NumpyEncoder, self).default(obj)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Emotion Recognition Competition for GNNs!')
@@ -111,29 +122,26 @@ if __name__ == '__main__':
     parser.add_argument('--fold_idx', type=int, default=5,
                         help='the index of fold in 10-fold validation. Should be less then 10.')
     parser.add_argument('--model', type=str, default='gcn',
-                        choices=['gcn', 'gat'], help='which model to use (default: gcn)')
+                        choices=['gcn', 'gat', 'exgat'], help='which model to use (default: gcn)')
     parser.add_argument('--num_layers', type=int, default=2,
                         help='number of layers INCLUDING the input one (default: 2)')
     parser.add_argument('--hidden_dim', type=int, default=64,
                         help='number of hidden units (default: 64)')
     parser.add_argument('--final_dropout', type=float, default=0.5,
                         help='final layer dropout (default: 0.5)')
+    parser.add_argument('--layer_dropout', type=float, default=0.1,
+                        help='middle layer dropout (default: 0.1, exgat only)')
     parser.add_argument('--graph_pooling_type', type=str, default="sum", choices=["sum", "average", "max"],
                         help='Pooling over nodes in a graph to get graph embeddig: sum, average or max (default: sum)')
-    parser.add_argument('--Normalize', type=bool, default=True, choices=[True, False],
-                        help='Normalizing data')
     parser.add_argument('--patience', type=int, default=10,
-                        help='Normalizing data')
-    parser.add_argument('--beta1', default=0.9, type=float,
-                        help='beta1 for adam')
-    parser.add_argument('--beta2', default=0.999, type=float,
-                        help='beta2 for adam')
-    parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
-                        metavar='W', help='weight decay (default: 1e-4)')
-    parser.add_argument('--adjacency', '--adj', default=1,
+                        help='Patience for early stopping. Default 10.')
+    parser.add_argument('--adjacency', default=1,
                         type=int, help='Nearest neighbors per node. Default 1.')
     parser.add_argument('--self_connect', default=False, type=bool,
                         help='Whether to connect itself in the Adjacency Mat. Default False.')
+    # exgat only
+    parser.add_argument('--use_multiscale_fusion', default=True, type=bool)
+    parser.add_argument('--use_special_pooling', default=True, type=bool)
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -162,25 +170,32 @@ if __name__ == '__main__':
                      self_connect=args.self_connect)).to(device)
     gat_heads = args.adjacency*2
 
-    if args.model == 'gcn':
-        # GCN
-        model = GCN(args.num_layers, d, args.hidden_dim, num_classes,
-                    args.final_dropout, args.graph_pooling_type, device, A).to(device)
-    elif args.model == 'gat':
-        # SkipGCNGAT，头数采用adjacency数，hidden_layer尽量比输入维数大
-        model = EnhancedSkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, gat_heads,
-                           args.final_dropout, args.graph_pooling_type, device, A).to(device)
-
     acc_train_sum = 0
     acc_test_sum = 0
 
     for i in range(args.fold_idx):
+        if args.model == 'gcn':
+            # GCN
+            model = GCN(args.num_layers, d, args.hidden_dim, num_classes,
+                        args.final_dropout, args.graph_pooling_type, device, A).to(device)
+        elif args.model == 'gat':
+            # SkipGCNGAT，头数采用adjacency数，hidden_layer尽量比输入维数大
+            model = SkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, gat_heads,
+                               args.final_dropout, args.graph_pooling_type, device, A).to(device)
+        elif args.model == 'exgat':
+            # EnhancedSkipGCNGAT，头数采用adjacency数，hidden_layer尽量比输入维数大
+            model = EnhancedSkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, gat_heads,
+                                       args.final_dropout, args.graph_pooling_type, device, A, args.layer_dropout,args.use_multiscale_fusion, args.use_special_pooling).to(device)
+
         train_data = train_folds[i]
         test_data = test_folds[i]
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
-        scheduler = optim.lr_scheduler.StepLR(
-            optimizer, step_size=50, gamma=0.5)
+        # scheduler = optim.lr_scheduler.StepLR(
+        #     optimizer, step_size=50, gamma=0.5)
+        # 换成余弦退火
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=args.epochs, eta_min=1e-5)
 
         early_stopping = tools.EarlyStopping(
             patience=args.patience, verbose=True)
@@ -221,14 +236,6 @@ if __name__ == '__main__':
         acc_train_sum += acc_train
         acc_test_sum += acc_test
 
-        if args.model == 'gcn':
-            # GCN
-            model = GCN(args.num_layers, d, args.hidden_dim, num_classes,
-                        args.final_dropout, args.graph_pooling_type, device, A).to(device)
-        elif args.model == 'gat':
-            model = EnhancedSkipGCNGAT(args.num_layers, d, args.hidden_dim, num_classes, gat_heads,
-                               args.final_dropout, args.graph_pooling_type, device, A).to(device)
-
     print('Average train acc: %f,  Average test acc: %f' %
           (acc_train_sum / args.fold_idx, acc_test_sum / args.fold_idx))
 
@@ -236,4 +243,4 @@ if __name__ == '__main__':
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     log_file = f'logs/{args.model}_l{args.num_layers}_h{args.hidden_dim}_{timestamp}.json'
     with open(log_file, 'w') as f:
-        json.dump(log_data, f, indent=4)
+        json.dump(log_data, f, indent=4, cls=NumpyEncoder)

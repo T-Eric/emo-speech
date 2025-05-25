@@ -41,12 +41,27 @@ class GraphConv(nn.Module):
             # all the graphs share the same A
             Deg = calc_degree(A)
             sqrt_Deg = torch.FloatTensor(fractional_matrix_power(
-                Deg.detach().cpu(), -0.5)).cuda()  # 神秘操作
+                Deg.detach().cpu(), -0.5)).cuda()
 
             Lap = Deg-A
             Lap_norm = sqrt_Deg.matmul(Lap.matmul(sqrt_Deg))
 
-            eigvals, U = torch.linalg.eigh(Lap_norm)
+            eps = 1e-5
+            eye = torch.eye(Lap_norm.size(0), device=Lap_norm.device)
+            Lap_norm = Lap_norm + eps * eye
+
+            if torch.isnan(Lap_norm).any() or torch.isinf(Lap_norm).any():
+                print("Warning: Laplacian contains NaN or Inf, applying fix")
+                Lap_norm = torch.nan_to_num(
+                    Lap_norm, nan=0.0, posinf=1.0, neginf=-1.0)
+
+            try:
+                eigvals, U = torch.linalg.eigh(Lap_norm)
+            except RuntimeError:
+                # 如果发生错误，增加扰动项
+                eps = 1e-4
+                Lap_norm = Lap_norm + eps * eye
+                eigvals, U = torch.linalg.eigh(Lap_norm)
 
             repeated_U_t = U.t().repeat(b, 1, 1)
             repeated_U = U.repeat(b, 1, 1)
@@ -63,6 +78,21 @@ class GraphConv(nn.Module):
                 Lap = Deg-A[i]
                 Lap_norm = sqrt_Deg.matmul(Lap.matmul(sqrt_Deg))
 
+            eps = 1e-5
+            eye = torch.eye(Lap_norm.size(0), device=Lap_norm.device)
+            Lap_norm = Lap_norm + eps * eye
+
+            if torch.isnan(Lap_norm).any() or torch.isinf(Lap_norm).any():
+                print("Warning: Laplacian contains NaN or Inf, applying fix")
+                Lap_norm = torch.nan_to_num(
+                    Lap_norm, nan=0.0, posinf=1.0, neginf=-1.0)
+
+            try:
+                eigvals, U = torch.linalg.eigh(Lap_norm)
+            except RuntimeError:
+                # 如果发生错误，增加扰动项
+                eps = 1e-4
+                Lap_norm = Lap_norm + eps * eye
                 eigvals, U = torch.linalg.eigh(Lap_norm)
 
                 repeated_U_t.append(U.t().view(1, U.shape[0], U.shape[1]))

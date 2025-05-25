@@ -149,12 +149,8 @@ class SkipGCNGAT(nn.Module):
         self._init_weights()
 
     def _init_weights(self):
-        """初始化权重以改善收敛性"""
-        # 初始化投影层
         nn.init.xavier_uniform_(self.input_projection.weight)
         nn.init.zeros_(self.input_projection.bias)
-
-        # 初始化分类器
         nn.init.xavier_uniform_(self.classifier[0].weight)
         nn.init.zeros_(self.classifier[0].bias)
         nn.init.xavier_uniform_(self.classifier[3].weight)
@@ -173,7 +169,7 @@ class SkipGCNGAT(nn.Module):
         for layer in self.gcs1:
             h = F.relu(layer(h, A))
 
-        # 第一个跳跃连接 - 带层归一化和可学习权重
+        # 层归一化和可学习权重
         h = self.alpha1 * h + (1 - self.alpha1) * self.norm_input(h_input)
 
         # GAT处理
@@ -186,20 +182,15 @@ class SkipGCNGAT(nn.Module):
                 # 最后一层不使用激活函数
                 h = layer(h, A)
 
-        # 保存GAT后的特征用于第二个跳跃连接
         h_gat = h
 
-        # 第二段GCN处理
         for layer in self.gcs2:
             h = F.relu(layer(h, A))
 
-        # 第二个跳跃连接 - 带层归一化和可学习权重
         h = self.alpha2 * h + (1 - self.alpha2) * self.norm_gat(h_gat)
 
-        # 最终归一化
         h = self.norm_final(h)
 
-        # 图池化
         if self.graph_pooling_type == 'mean':
             h = h.mean(dim=1)
         elif self.graph_pooling_type == 'sum':
@@ -209,13 +200,12 @@ class SkipGCNGAT(nn.Module):
         else:
             raise ValueError('Invalid graph pooling type')
 
-        # 分类
         ret = self.classifier(h)
         return ret
 
 
 class CustomPReLU(nn.Module):
-    """适用于GNN的PReLU激活函数"""
+    """原本会用第二维作为输入通道数，但是在批处理张量中应当改成3维"""
 
     def __init__(self, hidden_dim):
         super(CustomPReLU, self).__init__()
@@ -227,7 +217,7 @@ class CustomPReLU(nn.Module):
 
 
 class EnhancedSkipGCNGAT(nn.Module):
-    def __init__(self, num_layers, in_dim, hidden_dim, out_dim, gat_heads, final_dropout, graph_pooling_type, device, adj):
+    def __init__(self, num_layers, in_dim, hidden_dim, out_dim, gat_heads, final_dropout, graph_pooling_type, device, adj, layer_dropout=0.1, use_multiscale_fusion=True, use_special_pooling=True):
         super(EnhancedSkipGCNGAT, self).__init__()
 
         self.final_dropout = final_dropout
@@ -238,6 +228,7 @@ class EnhancedSkipGCNGAT(nn.Module):
         self.hidden_dim = hidden_dim
         self.adj = adj
         self.training_mode = True
+        self.layer_dropout = layer_dropout
 
         # 输入投影
         self.input_projection = nn.Linear(in_dim, hidden_dim)
@@ -332,14 +323,23 @@ class EnhancedSkipGCNGAT(nn.Module):
         if not self.training_mode:
             return adj
 
-        mask = (torch.rand(adj.shape, device=adj.device) > dropout_prob).float()
+        n = adj.size(0)
+        mask = torch.ones_like(adj, device=adj.device)
+        indices = torch.triu_indices(n, n, 1, device=adj.device)
+
+        vals = torch.rand(indices.size(1), device=adj.device)
+        mask_vals = (vals > dropout_prob).float()
+
+        mask[indices[0], indices[1]] = mask_vals
+        mask[indices[1], indices[0]] = mask_vals
+
         return adj * mask
 
     def forward(self, X_concat, return_features=False):
         # 处理邻接矩阵，添加随机边丢弃
         A = F.relu(self.adj)
         if self.training_mode:
-            A = self.drop_edges(A, dropout_prob=0.1)
+            A = self.drop_edges(A, dropout_prob=self.layer_dropout)
 
         # 投影到隐藏维度
         h = self.input_projection(X_concat)

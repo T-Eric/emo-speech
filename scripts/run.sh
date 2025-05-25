@@ -3,18 +3,17 @@ python -m src.train \
   --batch_size 128 \
   --iters_per_epoch 50 \
   --epochs 1000 \
-  --lr 5e-4 \
-  --seed 42 \
+  --lr 8e-4 \
+  --seed 0 \
   --fold_idx 5 \
-  --model gat \
-  --num_layers 2 \
+  --model exgat \
+  --num_layers 3 \
   --hidden_dim 256 \
   --final_dropout 0.5 \
+  --layer_dropout 0.2 \
   --graph_pooling_type sum \
-  --Normalize False \
-  --patience 10 \
-  --beta1 0.9 \
-  --beta2 0.999 \
-  --weight-decay 1e-4 \
+  --patience 20 \
   --adjacency 2 \
-  --self_connect False
+  --self_connect False \
+  --use_multiscale_fusion True \
+  --use_special_pooling True
