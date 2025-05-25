@@ -28,6 +28,9 @@ def create_training_plots(log_file, save_dir='plots'):
     test_accs = log_data['test_accs']
     folds = log_data['folds']
 
+    for fold in range(folds):
+        val_losses[fold].append(0.0)
+
     # 绘制训练/验证损失曲线
     plt.figure(figsize=(12, 6))
     for fold in range(folds):
@@ -48,9 +51,11 @@ def create_training_plots(log_file, save_dir='plots'):
     # 绘制训练/测试准确率曲线
     plt.figure(figsize=(12, 6))
     for fold in range(folds):
-        plt.plot(epochs[fold], train_accs[fold],
+        epochs_for_acc_plot = [
+            (i + 1) * 10 for i in range(len(test_accs[fold]))]
+        plt.plot(epochs_for_acc_plot, train_accs[fold],
                  label=f'Fold {fold+1} Train Acc')
-        plt.plot(epochs[fold], test_accs[fold],
+        plt.plot(epochs_for_acc_plot, test_accs[fold],
                  label=f'Fold {fold+1} Test Acc', linestyle='--')
 
     plt.xlabel('Epoch')
@@ -105,12 +110,19 @@ def create_training_plots(log_file, save_dir='plots'):
 
     return performance_summary
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Plot training metrics')
     parser.add_argument('--log_file', type=str, required=True,
                         help='Path to the log file containing training data')
     parser.add_argument('--save_dir', type=str, default='plots',
                         help='Directory to save plots')
-
     args = parser.parse_args()
-    create_training_plots(args.log_file, args.save_dir)
+
+    file_name_with_ext = os.path.basename(args.log_file)
+    file_name_without_ext, _ = os.path.splitext(file_name_with_ext)
+
+    final_plot_save_dir = os.path.join(args.save_dir, file_name_without_ext)
+
+    os.makedirs(final_plot_save_dir, exist_ok=True)
+    create_training_plots(args.log_file, final_plot_save_dir)

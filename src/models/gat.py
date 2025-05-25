@@ -229,6 +229,8 @@ class EnhancedSkipGCNGAT(nn.Module):
         self.adj = adj
         self.training_mode = True
         self.layer_dropout = layer_dropout
+        self.use_multiscale_fusion = use_multiscale_fusion
+        self.use_special_pooling = use_special_pooling
 
         # 输入投影
         self.input_projection = nn.Linear(in_dim, hidden_dim)
@@ -238,12 +240,13 @@ class EnhancedSkipGCNGAT(nn.Module):
         self.norm_gat = nn.LayerNorm(hidden_dim)
         self.norm_final = nn.LayerNorm(hidden_dim)
 
-        # 多尺度特征收集
-        self.multiscale_projection = nn.ModuleList([
-            nn.Linear(hidden_dim, hidden_dim//4) for _ in range(3)
-        ])
-        self.feature_fusion = nn.Linear(
-            hidden_dim + hidden_dim//4 * 3, hidden_dim)
+        if self.use_multiscale_fusion:
+            # 多尺度特征收集
+            self.multiscale_projection = nn.ModuleList([
+                nn.Linear(hidden_dim, hidden_dim//4) for _ in range(3)
+            ])
+            self.feature_fusion = nn.Linear(
+                hidden_dim + hidden_dim//4 * 3, hidden_dim)
 
         # GCN层
         self.gcs1 = torch.nn.ModuleList()
@@ -271,14 +274,15 @@ class EnhancedSkipGCNGAT(nn.Module):
         self.alpha1 = nn.Parameter(torch.tensor(0.5))
         self.alpha2 = nn.Parameter(torch.tensor(0.5))
 
-        # 集成池化
-        self.pool_attention = nn.Sequential(
-            nn.Linear(hidden_dim, 64),
-            nn.Tanh(),
-            nn.Linear(64, 1)
-        )
+        if use_special_pooling:
+            # 集成池化
+            self.pool_attention = nn.Sequential(
+                nn.Linear(hidden_dim, 64),
+                nn.Tanh(),
+                nn.Linear(64, 1)
+            )
 
-        self.pool_fusion = nn.Linear(hidden_dim*3, hidden_dim)
+            self.pool_fusion = nn.Linear(hidden_dim*3, hidden_dim)
 
         # 分类器
         self.classifier = nn.Sequential(
@@ -398,7 +402,17 @@ class EnhancedSkipGCNGAT(nn.Module):
         node_features = h
 
         # 使用集成池化
-        h = self.pooling(h)
+        if not self.use_special_pooling:
+            if self.graph_pooling_type == 'mean':
+                h = h.mean(dim=1)
+            elif self.graph_pooling_type == 'sum':
+                h = h.sum(dim=1)
+            elif self.graph_pooling_type == 'max':
+                h = h.max(dim=1)[0]
+            else:
+                raise ValueError('Invalid graph pooling type')
+        else:
+            h = self.pooling(h)
 
         # 分类
         ret = self.classifier(h)

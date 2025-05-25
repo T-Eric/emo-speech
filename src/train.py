@@ -195,7 +195,7 @@ if __name__ == '__main__':
         #     optimizer, step_size=50, gamma=0.5)
         # 换成余弦退火
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=args.epochs, eta_min=1e-5)
+            optimizer, T_max=60, eta_min=4e-5)
 
         early_stopping = tools.EarlyStopping(
             patience=args.patience, verbose=True)
